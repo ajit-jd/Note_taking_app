@@ -16,7 +16,7 @@ import androidx.navigation.NavController
 
 // Enum for Theme options
 enum class ThemeSetting {
-    SYSTEM, LIGHT, DARK
+    SYSTEM, LIGHT, DARK, OLIVE, NAVY
 }
 
 // TODO: This state should ideally be hoisted to an AppViewModel or saved in DataStore

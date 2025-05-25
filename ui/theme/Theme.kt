@@ -17,6 +17,13 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.example.project7.ui.screens.ThemeSetting
 import com.example.project7.ui.screens.currentThemeSetting
+// Import new colors
+import com.example.project7.ui.theme.DarkNavy
+import com.example.project7.ui.theme.LightOlive
+import com.example.project7.ui.theme.LightSteelBlue
+import com.example.project7.ui.theme.MediumNavy
+import com.example.project7.ui.theme.OliveGreen
+import com.example.project7.ui.theme.PaleOlive
 
 
 // Define your Color Schemes (you can customize these)
@@ -44,6 +51,36 @@ private val LightColorScheme = lightColorScheme(
     */
 )
 
+// Olive Color Scheme (Light)
+private val OliveColorScheme = lightColorScheme(
+    primary = OliveGreen,
+    secondary = LightOlive,
+    tertiary = PaleOlive
+    // You can add more specific overrides for onPrimary, onSecondary, etc. if needed
+    /* Example:
+    onPrimary = Color.White, // Assuming text on OliveGreen should be white
+    background = Color(0xFFFCFDF0), // A very light green/yellowish background
+    surface = Color(0xFFF8FBF0),    // Similar to background or slightly different
+    onBackground = Color(0xFF1A1C18), // Dark text for readability
+    onSurface = Color(0xFF1A1C18),    // Dark text for readability
+    */
+)
+
+// Navy Color Scheme (Dark)
+private val NavyColorScheme = darkColorScheme(
+    primary = LightSteelBlue, // Light text/icons on dark backgrounds
+    secondary = MediumNavy,
+    tertiary = DarkNavy
+    // You can add more specific overrides for onPrimary, onSecondary, etc. if needed
+    /* Example:
+    onPrimary = DarkNavy, // Text on LightSteelBlue could be DarkNavy for contrast
+    background = Color(0xFF000030), // Very dark blue background
+    surface = Color(0xFF00003A),    // Slightly lighter or different dark blue for surfaces
+    onBackground = Color(0xFFE0E0FF), // Light text for readability on dark background
+    onSurface = Color(0xFFE0E0FF),    // Light text for readability on dark background
+    */
+)
+
 @Composable
 
 fun Project7Theme(
@@ -54,19 +91,37 @@ fun Project7Theme(
 ) {
     val selectedThemeSetting = currentThemeSetting.value // Observe the global-like state
 
+    val colorScheme = when (selectedThemeSetting) {
+        ThemeSetting.OLIVE -> OliveColorScheme
+        ThemeSetting.NAVY -> NavyColorScheme
+        else -> if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val context = LocalContext.current
+            // Dynamic color scheme is determined by system theme for LIGHT, DARK, SYSTEM
+            val useDynamicDark = when (selectedThemeSetting) {
+                ThemeSetting.LIGHT -> false
+                ThemeSetting.DARK -> true
+                else -> isSystemInDarkTheme() // ThemeSetting.SYSTEM
+            }
+            if (useDynamicDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        } else {
+            // Fallback to predefined schemes if dynamic color is off or not supported
+            when (selectedThemeSetting) {
+                ThemeSetting.LIGHT -> LightColorScheme
+                ThemeSetting.DARK -> DarkColorScheme
+                else -> if (isSystemInDarkTheme()) DarkColorScheme else LightColorScheme // ThemeSetting.SYSTEM
+            }
+        }
+    }
+
+    // Determine if the status/navigation bars should be light or dark based on the chosen scheme
+    // This is crucial for text/icon visibility on these bars.
+    // isSystemInDarkTheme() is not sufficient here as Olive is light and Navy is dark.
     val darkTheme = when (selectedThemeSetting) {
         ThemeSetting.LIGHT -> false
         ThemeSetting.DARK -> true
+        ThemeSetting.OLIVE -> false // OliveColorScheme is light
+        ThemeSetting.NAVY -> true   // NavyColorScheme is dark
         ThemeSetting.SYSTEM -> isSystemInDarkTheme()
-    }
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
     }
     val view = LocalView.current
 
@@ -76,6 +131,7 @@ fun Project7Theme(
             val window = (view.context as Activity).window
             // window.statusBarColor = colorScheme.primary.toArgb() // DEPRECATED
             // window.navigationBarColor = colorScheme.surface.toArgb() // DEPRECATED
+            // Set status bar and navigation bar appearance based on the effective darkTheme
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
             WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
         }
