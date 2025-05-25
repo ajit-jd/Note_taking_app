@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role // Added for Role.Button
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.project7.data.Notebook
@@ -33,10 +34,28 @@ fun AppDrawer(drawerItems: List<NotebookDrawerItem>,
               isDarkTheme: Boolean,               // For the direct theme toggle in drawer
               onThemeToggle: (Boolean) -> Unit,   // For the direct theme toggle in drawer
               onNavigateToSettingsScreen: () -> Unit, // For the "More Settings" item
+              getNotesForNotebookFlow: (Int) -> kotlinx.coroutines.flow.Flow<List<com.example.project7.data.Note>>, // New parameter
+              onNoteClickedInDrawer: (Int) -> Unit, // New parameter
               modifier: Modifier = Modifier
 ) {
     val expandedNotebooks = remember { mutableStateMapOf<Int, Boolean>() }
     var showNotebookMenuFor by remember { mutableStateOf<Notebook?>(null) }
+    var expandedNotebookNotesId by remember { mutableStateOf<Int?>(null) }
+    var notesForExpandedNotebook by remember { mutableStateOf<List<com.example.project7.data.Note>>(emptyList()) } // Step 2
+
+    // Step 3: Fetch notes when expandedNotebookNotesId changes
+    LaunchedEffect(expandedNotebookNotesId) {
+        if (expandedNotebookNotesId != null) {
+            // Launch a coroutine to collect the flow
+            launch { // kotlinx.coroutines.launch
+                getNotesForNotebookFlow(expandedNotebookNotesId!!).collect { notes ->
+                    notesForExpandedNotebook = notes
+                }
+            }
+        } else {
+            notesForExpandedNotebook = emptyList() // Clear notes when no notebook is expanded
+        }
+    }
 
     ModalDrawerSheet(
         modifier = modifier.fillMaxHeight() // Drawer typically takes full height
@@ -89,31 +108,81 @@ fun AppDrawer(drawerItems: List<NotebookDrawerItem>,
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    var intendToCloseDrawer = true
-                                    if (item.subNotebooks.isNotEmpty()) {
-                                        expandedNotebooks[item.notebook.id] = !(expandedNotebooks[item.notebook.id] ?: false)
-                                        intendToCloseDrawer = false // Expanding/collapsing doesn't close drawer
-                                    }
-                                    onNotebookClicked(item.notebook, intendToCloseDrawer)
-                                }
+                                // REMOVE the existing .clickable modifier from the Row itself.
+                                // Clicks will be handled by individual elements within the Row.
                                 .padding(NavigationDrawerItemDefaults.ItemPadding),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = if (item.subNotebooks.isNotEmpty()) {
-                                    if (expandedNotebooks[item.notebook.id] == true) Icons.Filled.ArrowDropDown else Icons.AutoMirrored.Filled.ArrowRight
-                                } else {
-                                    Icons.Filled.Folder
-                                },
-                                contentDescription = if (item.subNotebooks.isNotEmpty()) {
-                                    if (expandedNotebooks[item.notebook.id] == true) "Collapse ${item.notebook.name}" else "Expand ${item.notebook.name}"
-                                } else item.notebook.name,
-                                modifier = Modifier.size(24.dp)
+                            // Box for SubNotebookArrowIcon (should be mostly as per previous step for sub-notebook expansion)
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clickable(
+                                        enabled = item.subNotebooks.isNotEmpty(),
+                                        onClick = {
+                                            if (item.subNotebooks.isNotEmpty()) {
+                                                expandedNotebooks[item.notebook.id] = !(expandedNotebooks[item.notebook.id] ?: false)
+                                                // Optional: Collapse notes dropdown if sub-notebooks are toggled
+                                                // expandedNotebookNotesId = null 
+                                            }
+                                        },
+                                        role = androidx.compose.ui.semantics.Role.Button
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (item.subNotebooks.isNotEmpty()) {
+                                        if (expandedNotebooks[item.notebook.id] == true) Icons.Filled.ArrowDropDown else Icons.AutoMirrored.Filled.ArrowRight
+                                    } else {
+                                        Icons.Filled.Folder
+                                    },
+                                    contentDescription = if (item.subNotebooks.isNotEmpty()) {
+                                        if (expandedNotebooks[item.notebook.id] == true) "Collapse sub-notebooks for ${item.notebook.name}" else "Expand sub-notebooks for ${item.notebook.name}"
+                                    } else "Notebook: ${item.notebook.name}" // General description if no sub-notebooks
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+
+                            // Text for Notebook Name (now with its own clickable)
+                            Text(
+                                text = item.notebook.name,
+                                modifier = Modifier
+                                    .weight(1f) // Takes available space
+                                    .clickable {
+                                        onNotebookClicked(item.notebook, true) // True to close drawer - from MainScreen
+                                        expandedNotebookNotesId = null // Collapse notes dropdown if open
+                                    },
+                                style = MaterialTheme.typography.labelLarge
                             )
-                            Spacer(Modifier.width(16.dp))
-                            Text(item.notebook.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
-                            IconButton(onClick = { showNotebookMenuFor = item.notebook }) {
+
+                            Spacer(Modifier.width(4.dp)) // Spacer before the new icon
+
+                            // IconButton for Toggling Notes Dropdown in Drawer
+                            IconButton(
+                                onClick = {
+                                    if (expandedNotebookNotesId == item.notebook.id) {
+                                        expandedNotebookNotesId = null
+                                    } else {
+                                        expandedNotebookNotesId = item.notebook.id
+                                        // Optional: Collapse sub-notebooks if notes dropdown is shown
+                                        // if (item.subNotebooks.isNotEmpty()) {
+                                        //    expandedNotebooks[item.notebook.id] = false
+                                        // }
+                                    }
+                                },
+                                modifier = Modifier.size(40.dp) // Consistent touch target size
+                            ) {
+                                Icon(
+                                    imageVector = if (expandedNotebookNotesId == item.notebook.id) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDownCircle, // Visually indicate state
+                                    contentDescription = if (expandedNotebookNotesId == item.notebook.id) "Hide notes for ${item.notebook.name}" else "Show notes for ${item.notebook.name}"
+                                )
+                            }
+
+                            // IconButton for MoreVert (options menu) - remains the same
+                            IconButton(
+                                onClick = { showNotebookMenuFor = item.notebook },
+                                modifier = Modifier.size(40.dp) // Consistent touch target size
+                            ) {
                                 Icon(Icons.Filled.MoreVert, contentDescription = "Options for ${item.notebook.name}")
                             }
                             DropdownMenu(
@@ -132,6 +201,39 @@ fun AppDrawer(drawerItems: List<NotebookDrawerItem>,
                                 )
                             }
                         } // End Row for Notebook item
+
+                        // --- Notes Dropdown (Placeholder) ---
+                        if (expandedNotebookNotesId == item.notebook.id) {
+                            // This Column will contain the list of note titles
+                            Column(
+                                modifier = Modifier
+                                    .padding(start = 32.dp) // Indent
+                                    .fillMaxWidth()
+                            ) {
+                                if (notesForExpandedNotebook.isEmpty()) {
+                                    Text(
+                                        "No notes in this notebook.",
+                                        modifier = Modifier.padding(vertical = 4.dp),
+                                        style = MaterialTheme.typography.bodySmall, // Or some other appropriate style
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else {
+                                    notesForExpandedNotebook.forEach { note ->
+                                        Text(
+                                            text = note.title.ifEmpty { "(Untitled Note)" }, // Display title, or placeholder if empty
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    onNoteClickedInDrawer(note.id) // Call the new lambda for note clicks
+                                                    expandedNotebookNotesId = null // Collapse notes dropdown after click
+                                                }
+                                                .padding(vertical = 8.dp), // Make items a bit taller
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                }
+                            }
+                        }
 
                         if (expandedNotebooks[item.notebook.id] == true && item.subNotebooks.isNotEmpty()) {
                             Column(modifier = Modifier.padding(start = 24.dp)) { // Indent sub-notebooks

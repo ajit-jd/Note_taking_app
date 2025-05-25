@@ -140,6 +140,15 @@ fun MainScreen(
                     scope.launch { drawerState.close() }
                 },
 
+                // --- New Parameters ---
+                getNotesForNotebookFlow = viewModel::getNotesByNotebookIdFlow, // Pass the function reference
+                onNoteClickedInDrawer = { noteId ->
+                    navController.navigate(Screen.NoteDetail.route + "/$noteId")
+                    scope.launch { drawerState.close() }
+                    // expandedNotebookNotesId in AppDrawer is already set to null by its own click handler
+                },
+                // --- End New Parameters ---
+
                 // Parameters for the Settings section that ARE in AppDrawer
                 isDarkTheme = isDarkTheme,         // Pass this from MainScreen's parameters
                 onThemeToggle = onThemeToggle,     // Pass this from MainScreen's parameters

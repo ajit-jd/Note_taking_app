@@ -307,4 +307,17 @@ class NoteViewModel(application: Application) : AndroidViewModel(application) {
 
 
     fun deleteNoteById(noteId: Int) = viewModelScope.launch { /* ... same ... */ }
+
+    fun getNotesByNotebookIdFlow(notebookId: Int): Flow<List<Note>> {
+        // Ensure noteDao is initialized before use, though it should be by the time this is called.
+        if (!::noteDao.isInitialized) {
+            Log.e("NoteViewModel", "getNotesByNotebookIdFlow called before noteDao initialization.")
+            return flowOf(emptyList()) // Return an empty flow if DAO not ready
+        }
+        return noteDao.getNotesByNotebookId(notebookId)
+            .catch { e ->
+                Log.e("NoteViewModel", "Error in getNotesByNotebookIdFlow for notebookId $notebookId: ${e.message}", e)
+                emit(emptyList()) // Emit an empty list on error
+            }
+    }
 }
