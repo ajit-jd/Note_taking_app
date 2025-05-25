@@ -55,6 +55,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+// Constants for Undo/Redo
+private const val MAX_UNDO_STACK_SIZE = 50
+private const val DEBOUNCE_MS = 750L
+
 import android.content.Intent
 import android.speech.RecognizerIntent
 import android.app.Activity
@@ -70,6 +74,7 @@ import androidx.compose.ui.platform.LocalContext
 import java.util.Locale
 import android.Manifest
 //import android.util.Log
+import kotlinx.coroutines.delay // Already imported above, but good to ensure
 
 import com.example.project7.ui.utils.* // Imports all utils: helpers, constants, FormattingButton
 //import java.util.jar.Manifest
@@ -83,6 +88,19 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
     var currentNoteIdInternal by remember(noteId) { mutableStateOf(if (isNewNote) -1 else noteId) }
     var titleTfv by remember { mutableStateOf(TextFieldValue("")) }
     var contentTfv by remember { mutableStateOf(TextFieldValue(AnnotatedString(""))) }
+
+    // Undo/Redo Stacks for Title
+    var undoStackTitle by remember { mutableStateOf<List<TextFieldValue>>(emptyList()) }
+    var redoStackTitle by remember { mutableStateOf<List<TextFieldValue>>(emptyList()) }
+
+    // Undo/Redo Stacks for Content
+    var undoStackContent by remember { mutableStateOf<List<TextFieldValue>>(emptyList()) }
+    var redoStackContent by remember { mutableStateOf<List<TextFieldValue>>(emptyList()) }
+
+    // Track last focused field for global undo/redo
+    enum class LastFocusedField { TITLE, CONTENT }
+    var lastFocusedField by remember { mutableStateOf(LastFocusedField.CONTENT) } // Default to content
+
     var initialDataApplied by remember { mutableStateOf(false) }
     var noteImageUriString by remember { mutableStateOf<String?>(null) }
 
@@ -91,6 +109,15 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
     var titleAutoSaveJob by remember { mutableStateOf<Job?>(null) }
     var contentAutoSaveJob by remember { mutableStateOf<Job?>(null) }
 
+    val pushContentToUndoStack = { currentContentTfv: TextFieldValue ->
+        if (undoStackContent.lastOrNull() != currentContentTfv) { // Avoid duplicate entries if state hasn't changed
+            undoStackContent = (undoStackContent + currentContentTfv).takeLast(MAX_UNDO_STACK_SIZE)
+        }
+        if (redoStackContent.isNotEmpty()) {
+            redoStackContent = emptyList()
+        }
+        lastFocusedField = LastFocusedField.CONTENT
+    }
 
     val labelPrefix = "--"
     var showLabelSuggestions by remember { mutableStateOf(false) }
@@ -108,6 +135,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
+            pushContentToUndoStack(contentTfv) // ADD THIS LINE FIRST
             Log.d("ImageUpload", "Image URI selected: $uri")
             val newImageUriString = uri.toString()
             noteImageUriString = newImageUriString
@@ -175,6 +203,12 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                             noteImageUriString = noteFromFlow.imageUriString
                             selectedBackgroundColor = noteFromFlow.backgroundColor?.let { Color(it) } ?: Color.Transparent
                             initialDataApplied = true
+                            if (undoStackTitle.isEmpty() && titleTfv.text.isNotEmpty()) {
+                                undoStackTitle = listOf(titleTfv)
+                            }
+                            if (undoStackContent.isEmpty() && contentTfv.text.isNotEmpty()) {
+                                undoStackContent = listOf(contentTfv)
+                            }
                         } else if (noteFromFlow == null && initialDataApplied) navController.navigateUp()
                     }
                 }
@@ -188,6 +222,12 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                 contentTfv = TextFieldValue(AnnotatedString(""))
                 noteImageUriString = null
                 initialDataApplied = true
+                if (undoStackTitle.isEmpty()) {
+                    undoStackTitle = listOf(titleTfv)
+                }
+                if (undoStackContent.isEmpty()) {
+                    undoStackContent = listOf(contentTfv)
+                }
             }
         }
     }
@@ -330,6 +370,85 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                     }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
                 actions = {
+                    // New Undo Button
+                    IconButton(
+                        onClick = {
+                            if (lastFocusedField == LastFocusedField.TITLE) {
+                                if (undoStackTitle.isNotEmpty()) {
+                                    val currentState = titleTfv
+                                    val previousState = undoStackTitle.last()
+                                    titleTfv = previousState // Apply the undone state
+                                    undoStackTitle = undoStackTitle.dropLast(1)
+                                    redoStackTitle = (redoStackTitle + currentState).takeLast(MAX_UNDO_STACK_SIZE)
+                                    // Log.d("UndoAction", "Title undone. New title: ${titleTfv.text}")
+                                    // Log.d("UndoAction", "undoStackTitle size: ${undoStackTitle.size}, redoStackTitle size: ${redoStackTitle.size}")
+
+                                    // Trigger autosave for title after undo
+                                    if (initialDataApplied) triggerAutoSave(true)
+                                }
+                            } else { // LastFocusedField.CONTENT
+                                if (undoStackContent.isNotEmpty()) {
+                                    val currentState = contentTfv
+                                    val previousState = undoStackContent.last()
+                                    contentTfv = previousState // Apply the undone state
+                                    undoStackContent = undoStackContent.dropLast(1)
+                                    redoStackContent = (redoStackContent + currentState).takeLast(MAX_UNDO_STACK_SIZE)
+                                    // Log.d("UndoAction", "Content undone. New content: ${contentTfv.text.annotatedString.text}")
+                                    // Log.d("UndoAction", "undoStackContent size: ${undoStackContent.size}, redoStackContent size: ${redoStackContent.size}")
+
+                                    // Trigger autosave for content after undo
+                                    if (initialDataApplied) triggerAutoSave(false)
+                                }
+                            }
+                        },
+                        enabled = (if (lastFocusedField == LastFocusedField.TITLE) undoStackTitle else undoStackContent).isNotEmpty()
+                    ) {
+                        Icon(
+                            Icons.Filled.Undo,
+                            contentDescription = "Undo"
+                        )
+                    }
+
+                    // New Redo Button
+                    IconButton(
+                        onClick = {
+                            if (lastFocusedField == LastFocusedField.TITLE) {
+                                if (redoStackTitle.isNotEmpty()) {
+                                    val currentState = titleTfv
+                                    val nextState = redoStackTitle.last()
+                                    titleTfv = nextState // Apply the redone state
+                                    redoStackTitle = redoStackTitle.dropLast(1)
+                                    undoStackTitle = (undoStackTitle + currentState).takeLast(MAX_UNDO_STACK_SIZE)
+                                    // Log.d("RedoAction", "Title redone. New title: ${titleTfv.text}")
+                                    // Log.d("RedoAction", "undoStackTitle size: ${undoStackTitle.size}, redoStackTitle size: ${redoStackTitle.size}")
+
+                                    // Trigger autosave for title after redo
+                                    if (initialDataApplied) triggerAutoSave(true)
+                                }
+                            } else { // LastFocusedField.CONTENT
+                                if (redoStackContent.isNotEmpty()) {
+                                    val currentState = contentTfv
+                                    val nextState = redoStackContent.last()
+                                    contentTfv = nextState // Apply the redone state
+                                    redoStackContent = redoStackContent.dropLast(1)
+                                    undoStackContent = (undoStackContent + currentState).takeLast(MAX_UNDO_STACK_SIZE)
+                                    // Log.d("RedoAction", "Content redone. New content: ${contentTfv.text.annotatedString.text}")
+                                    // Log.d("RedoAction", "undoStackContent size: ${undoStackContent.size}, redoStackContent size: ${redoStackContent.size}")
+
+                                    // Trigger autosave for content after redo
+                                    if (initialDataApplied) triggerAutoSave(false)
+                                }
+                            }
+                        },
+                        enabled = (if (lastFocusedField == LastFocusedField.TITLE) redoStackTitle else redoStackContent).isNotEmpty()
+                    ) {
+                        Icon(
+                            Icons.Filled.Redo,
+                            contentDescription = "Redo"
+                        )
+                    }
+
+                    // Existing Delete Button (if applicable)
                     if (currentNoteIdInternal != -1) {
                         IconButton(onClick = { viewModel.deleteNoteById(currentNoteIdInternal); navController.navigateUp() }) {
                             Icon(Icons.Filled.Delete, "Delete Note")
@@ -358,13 +477,27 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
             BasicTextField(
                 value = titleTfv,
                 onValueChange = { newTfv ->
+                    // val oldTfv = titleTfv // Capture the value before this change
                     titleTfv = newTfv
+                    if (initialDataApplied) { // Ensure initial load doesn't trigger this
+                        // Clear redo stack on new input
+                        if (redoStackTitle.isNotEmpty()) {
+                            redoStackTitle = emptyList()
+                        }
+                        // Logic to push to undo stack will be handled by a debouncer/LaunchedEffect
+                        // Update last focused field immediately - ALREADY DONE in onFocusChanged
+                        // lastFocusedField = LastFocusedField.TITLE 
+                    }
+                    // Auto-save call should remain
                     if (initialDataApplied) triggerAutoSave(true)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 16.dp)
                     .onFocusChanged { focusState ->
+                        if (focusState.isFocused) {
+                            lastFocusedField = LastFocusedField.TITLE
+                        }
                         if (!focusState.isFocused && initialDataApplied) {
                             titleAutoSaveJob?.cancel()
                             scope.launch {
@@ -413,6 +546,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                         desc = "Bold",
                         isSelected = isBoldNow,
                         onClick = {
+                            pushContentToUndoStack(contentTfv)
                             if (!currentSelection.collapsed) {
                                 val builder = AnnotatedString.Builder()
                                 val originalText = contentTfv.annotatedString
@@ -456,6 +590,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                         desc = "Italic",
                         isSelected = isItalicNow,
                         onClick = {
+                            pushContentToUndoStack(contentTfv)
                             if (!currentSelection.collapsed) {
                                 val builder = AnnotatedString.Builder()
                                 val originalText = contentTfv.annotatedString
@@ -488,6 +623,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                         desc = "Underline",
                         isSelected = isUnderlinedNow,
                         onClick = {
+                            pushContentToUndoStack(contentTfv)
                             if (!currentSelection.collapsed) {
                                 val builder = AnnotatedString.Builder()
                                 val originalText = contentTfv.annotatedString
@@ -526,6 +662,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                         desc = "List",
                         isSelected = isBulletedNow,
                         onClick = {
+                            pushContentToUndoStack(contentTfv)
                             val selection = contentTfv.selection
                             val textToModify = contentTfv.annotatedString
                             val builder = AnnotatedString.Builder()
@@ -568,6 +705,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                         desc = "Indent (Tab)",
                         isSelected = false,
                         onClick = {
+                            pushContentToUndoStack(contentTfv)
                             val selection = contentTfv.selection
                             val currentText = contentTfv.annotatedString
                             val builder = AnnotatedString.Builder()
@@ -599,6 +737,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                         desc = "Outdent",
                         isSelected = false,
                         onClick = {
+                            pushContentToUndoStack(contentTfv)
                             val selection = contentTfv.selection
                             val currentText = contentTfv.annotatedString
                             val builder = AnnotatedString.Builder()
@@ -688,6 +827,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                                         }
                                     },
                                     onClick = {
+                                        pushContentToUndoStack(contentTfv) // ADD THIS LINE FIRST
                                         Log.d("NoteFormatting", "Selected background color: $name")
                                         selectedBackgroundColor = colorValue
                                         if (initialDataApplied) {
@@ -724,6 +864,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                             val data = result.data
                             val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
                             results?.firstOrNull()?.let { recognizedText ->
+                                pushContentToUndoStack(contentTfv) // ADD THIS LINE FIRST
                                 Log.d("VoiceInput", "Recognized text: $recognizedText")
                                 val currentContent = contentTfv.annotatedString.text
                                 val newContent = if (currentContent.isEmpty()) recognizedText else "$currentContent $recognizedText"
@@ -734,7 +875,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                                 triggerAutoSave(false) // Trigger autosave
                             }
                         }
-                        isRecording = false
+                        isRecording = false // This should be outside the 'let'
                     }
                     val permissionLauncher = rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.RequestPermission()
@@ -791,10 +932,23 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                 BasicTextField(
                     value = contentTfv,
                     onValueChange = { newTfv ->
-                        val oldAnnotatedText = contentTfv.annotatedString
-                        val oldSelectionEnd = contentTfv.selection.end
+                        // val oldTfv = contentTfv // Capture for potential immediate undo
                         contentTfv = newTfv
+                        if (initialDataApplied) { // Ensure initial load doesn't trigger this
+                            // Clear redo stack on new input
+                            if (redoStackContent.isNotEmpty()) {
+                                redoStackContent = emptyList()
+                            }
+                            // Update last focused field immediately - ALREADY DONE in onFocusChanged
+                            // lastFocusedField = LastFocusedField.CONTENT
+                        }
+
+                        // Auto-save call should remain
                         if (initialDataApplied) triggerAutoSave(false)
+
+                        // --- existing logic for label suggestion and autosave ---
+                        val oldAnnotatedText = contentTfv.annotatedString // This is now the newTfv
+                        val oldSelectionEnd = contentTfv.selection.end // This is also from newTfv
 
                         // Handle Enter key for lists
                         if (newTfv.annotatedString.text.length > oldAnnotatedText.text.length &&
@@ -851,6 +1005,9 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                     modifier = Modifier
                         .fillMaxSize()
                         .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                lastFocusedField = LastFocusedField.CONTENT
+                            }
                             if (!focusState.isFocused && initialDataApplied) {
                                 contentAutoSaveJob?.cancel()
                                 scope.launch {
@@ -928,6 +1085,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                                     // TODO: Implement full-screen image viewer
                                 },
                                 onLongClick = {
+                                    pushContentToUndoStack(contentTfv) // ADD THIS LINE FIRST
                                     Log.d("ImageDisplay", "Image long pressed - removing")
                                     noteImageUriString = null
                                     contentAutoSaveJob?.cancel()
@@ -955,6 +1113,20 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                             contentScale = ContentScale.Fit
                         )
                     }
+        }
+    }
+
+    // Debouncer for Content Undo
+    LaunchedEffect(contentTfv) { // Reacts to contentTfv changes
+        if (!initialDataApplied) return@LaunchedEffect // Don't run on initial composition
+
+        delay(DEBOUNCE_MS) // Wait for typing to pause
+
+        // Check if the current contentTfv is different from the last saved undo state
+        if (undoStackContent.lastOrNull() != contentTfv) {
+            //Log.d("UndoDebug", "Debounced: Adding to undoStackContent. Current stack size: ${undoStackContent.size}")
+            undoStackContent = (undoStackContent + contentTfv).takeLast(MAX_UNDO_STACK_SIZE)
+            //Log.d("UndoDebug", "New undoStackContent size: ${undoStackContent.size}, last element: ${undoStackContent.lastOrNull()?.text}")
                 }
             }
 
