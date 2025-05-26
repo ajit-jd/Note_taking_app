@@ -6,6 +6,11 @@ package com.example.project7.ui.screens
 
 
 import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import com.example.project7.ui.utils.collectAsStateWithLifecycleManual
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -69,7 +74,11 @@ fun MainScreen(
     var notebookToRename by remember { mutableStateOf<Notebook?>(null) }
     var notebookToDelete by remember { mutableStateOf<Notebook?>(null) }
     // --- Add New Notebook Dialog ---
-    if (showAddNewNotebookDialog) {
+    AnimatedVisibility(
+        visible = showAddNewNotebookDialog,
+        enter = fadeIn() + scaleIn(),
+        exit = fadeOut() + scaleOut()
+    ) {
         AddNewNotebookDialog(
             onDismiss = { showAddNewNotebookDialog = false },
             onConfirm = { notebookName ->
@@ -80,28 +89,40 @@ fun MainScreen(
     }
 
     // --- Rename Notebook Dialog ---
-    notebookToRename?.let { currentNotebook ->
-        RenameNotebookDialog(
-            notebook = currentNotebook,
-            onDismiss = { notebookToRename = null },
-            onConfirm = { newName ->
+    AnimatedVisibility(
+        visible = notebookToRename != null,
+        enter = fadeIn() + scaleIn(),
+        exit = fadeOut() + scaleOut()
+    ) {
+        notebookToRename?.let { currentNotebook ->
+            RenameNotebookDialog(
+                notebook = currentNotebook,
+                onDismiss = { notebookToRename = null },
+                onConfirm = { newName ->
                 scope.launch { viewModel.updateNotebook(currentNotebook.copy(name = newName)) } // Use defined scope
                 notebookToRename = null
-            }
-        )
+                }
+            )
+        }
     }
 
     // --- Confirm Delete Notebook Dialog ---
-    notebookToDelete?.let { currentNotebook ->
-        ConfirmDeleteDialog(
-            itemName = currentNotebook.name,
-            itemType = "notebook",
-            onDismiss = { notebookToDelete = null },
-            onConfirm = {
+    AnimatedVisibility(
+        visible = notebookToDelete != null,
+        enter = fadeIn() + scaleIn(),
+        exit = fadeOut() + scaleOut()
+    ) {
+        notebookToDelete?.let { currentNotebook ->
+            ConfirmDeleteDialog(
+                itemName = currentNotebook.name,
+                itemType = "notebook",
+                onDismiss = { notebookToDelete = null },
+                onConfirm = {
                 scope.launch { viewModel.deleteNotebook(currentNotebook) } // Use defined scope
                 notebookToDelete = null
-            }
-        )
+                }
+            )
+        }
     }
 
 

@@ -12,6 +12,13 @@ import androidx.compose.material.icons.filled.* // Add, ArrowDropDown, Descripti
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role // Added for Role.Button
 import androidx.compose.ui.text.font.FontWeight
@@ -104,7 +111,7 @@ fun AppDrawer(drawerItems: List<NotebookDrawerItem>,
                 )
             } else {
                 drawerItems.forEach { item ->
-                    Column { // Groups a notebook and its potential subnotebooks
+                    Column(modifier = Modifier.animateContentSize()) { // Groups a notebook and its potential subnotebooks
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -185,25 +192,31 @@ fun AppDrawer(drawerItems: List<NotebookDrawerItem>,
                             ) {
                                 Icon(Icons.Filled.MoreVert, contentDescription = "Options for ${item.notebook.name}")
                             }
-                            DropdownMenu(
-                                expanded = showNotebookMenuFor == item.notebook,
-                                onDismissRequest = { showNotebookMenuFor = null }
+                            AnimatedVisibility(
+                                visible = showNotebookMenuFor == item.notebook,
+                                enter = fadeIn() + scaleIn(transformOrigin = TransformOrigin(0.9f, 0.1f)), // Adjusted for typical menu opening
+                                exit = fadeOut() + scaleOut(transformOrigin = TransformOrigin(0.9f, 0.1f))
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text("Rename") },
-                                    onClick = { onRenameNotebookClicked(item.notebook); showNotebookMenuFor = null },
-                                    leadingIcon = { Icon(Icons.Filled.DriveFileRenameOutline, "Rename Notebook") }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Delete") },
-                                    onClick = { onDeleteNotebookClicked(item.notebook); showNotebookMenuFor = null },
-                                    leadingIcon = { Icon(Icons.Filled.Delete, "Delete Notebook") }
-                                )
+                                DropdownMenu(
+                                    expanded = true, // Controlled by AnimatedVisibility
+                                    onDismissRequest = { showNotebookMenuFor = null }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Rename") },
+                                        onClick = { onRenameNotebookClicked(item.notebook); showNotebookMenuFor = null },
+                                        leadingIcon = { Icon(Icons.Filled.DriveFileRenameOutline, "Rename Notebook") }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete") },
+                                        onClick = { onDeleteNotebookClicked(item.notebook); showNotebookMenuFor = null },
+                                        leadingIcon = { Icon(Icons.Filled.Delete, "Delete Notebook") }
+                                    )
+                                }
                             }
                         } // End Row for Notebook item
 
                         // --- Notes Dropdown (Placeholder) ---
-                        if (expandedNotebookNotesId == item.notebook.id) {
+                        AnimatedVisibility(visible = expandedNotebookNotesId == item.notebook.id) {
                             // This Column will contain the list of note titles
                             Column(
                                 modifier = Modifier
@@ -219,32 +232,44 @@ fun AppDrawer(drawerItems: List<NotebookDrawerItem>,
                                     )
                                 } else {
                                     notesForExpandedNotebook.forEach { note ->
-                                        Text(
-                                            text = note.title.ifEmpty { "(Untitled Note)" }, // Display title, or placeholder if empty
-                                            modifier = Modifier
+                                        AnimatedVisibility(
+                                            visible = true, // Each item is visible when the list is visible
+                                            enter = fadeIn() + expandVertically(),
+                                            exit = fadeOut() + shrinkVertically()
+                                        ) {
+                                            Text(
+                                                text = note.title.ifEmpty { "(Untitled Note)" }, // Display title, or placeholder if empty
+                                                modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clickable {
                                                     onNoteClickedInDrawer(note.id) // Call the new lambda for note clicks
                                                     expandedNotebookNotesId = null // Collapse notes dropdown after click
                                                 }
-                                                .padding(vertical = 8.dp), // Make items a bit taller
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
+                                                    .padding(vertical = 8.dp), // Make items a bit taller
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
 
-                        if (expandedNotebooks[item.notebook.id] == true && item.subNotebooks.isNotEmpty()) {
+                        AnimatedVisibility(visible = expandedNotebooks[item.notebook.id] == true && item.subNotebooks.isNotEmpty()) {
                             Column(modifier = Modifier.padding(start = 24.dp)) { // Indent sub-notebooks
                                 item.subNotebooks.forEach { subNotebook: SubNotebook ->
-                                    NavigationDrawerItem(
-                                        icon = { Icon(Icons.AutoMirrored.Filled.Note, contentDescription = subNotebook.name, modifier = Modifier.padding(start = 12.dp)) },
-                                        label = { Text(subNotebook.name) },
-                                        selected = false, // TODO: Implement selection state
-                                        onClick = { onSubNotebookClicked(subNotebook, item.notebook) },
-                                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                                    )
+                                    AnimatedVisibility(
+                                        visible = true, // Each item is visible when the list is visible
+                                        enter = fadeIn() + expandVertically(),
+                                        exit = fadeOut() + shrinkVertically()
+                                    ) {
+                                        NavigationDrawerItem(
+                                            icon = { Icon(Icons.AutoMirrored.Filled.Note, contentDescription = subNotebook.name, modifier = Modifier.padding(start = 12.dp)) },
+                                            label = { Text(subNotebook.name) },
+                                            selected = false, // TODO: Implement selection state
+                                            onClick = { onSubNotebookClicked(subNotebook, item.notebook) },
+                                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                                        )
+                                    }
                                 }
                             }
                         }

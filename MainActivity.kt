@@ -12,6 +12,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.* // For remember, mutableStateOf, by
 import androidx.compose.runtime.saveable.rememberSaveable // For saving theme state
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -69,7 +74,13 @@ fun NoteAppNavigation(
         navController = navController,
         startDestination = Screen.Main.route
     ) {
-        composable(route = Screen.Main.route) { navBackStackEntry ->
+        composable(
+            route = Screen.Main.route,
+            enterTransition = { fadeIn(animationSpec = tween(300)) + slideInHorizontally(initialOffsetX = { it / 2 }) },
+            exitTransition = { fadeOut(animationSpec = tween(300)) + slideOutHorizontally(targetOffsetX = { -it / 2 }) },
+            popEnterTransition = { fadeIn(animationSpec = tween(300)) + slideInHorizontally(initialOffsetX = { -it / 2 }) },
+            popExitTransition = { fadeOut(animationSpec = tween(300)) + slideOutHorizontally(targetOffsetX = { it / 2 }) }
+        ) { navBackStackEntry ->
             Log.d("LifecycleDebug", "MainActivity: Composing MainScreen route. NBE State: ${navBackStackEntry.lifecycle.currentState}")
             CompositionLocalProvider(LocalLifecycleOwner provides navBackStackEntry) {
                 MainScreen(
@@ -86,7 +97,11 @@ fun NoteAppNavigation(
             arguments = listOf(navArgument("noteId") {
                 type = NavType.IntType
                 defaultValue = -1
-            })
+            }),
+            enterTransition = { fadeIn(animationSpec = tween(300)) + slideInHorizontally(initialOffsetX = { it / 2 }) },
+            exitTransition = { fadeOut(animationSpec = tween(300)) + slideOutHorizontally(targetOffsetX = { -it / 2 }) },
+            popEnterTransition = { fadeIn(animationSpec = tween(300)) + slideInHorizontally(initialOffsetX = { -it / 2 }) },
+            popExitTransition = { fadeOut(animationSpec = tween(300)) + slideOutHorizontally(targetOffsetX = { it / 2 }) }
         ) { navBackStackEntry ->
             Log.d("LifecycleDebug", "MainActivity: Composing NoteDetailScreen route. NBE State: ${navBackStackEntry.lifecycle.currentState}")
             val noteId = navBackStackEntry.arguments?.getInt("noteId") ?: -1
@@ -99,7 +114,13 @@ fun NoteAppNavigation(
             }
         }
 
-        composable(route = Screen.LabelBrowse.route) { navBackStackEntry ->
+        composable(
+            route = Screen.LabelBrowse.route,
+            enterTransition = { fadeIn(animationSpec = tween(300)) + slideInHorizontally(initialOffsetX = { it / 2 }) },
+            exitTransition = { fadeOut(animationSpec = tween(300)) + slideOutHorizontally(targetOffsetX = { -it / 2 }) },
+            popEnterTransition = { fadeIn(animationSpec = tween(300)) + slideInHorizontally(initialOffsetX = { -it / 2 }) },
+            popExitTransition = { fadeOut(animationSpec = tween(300)) + slideOutHorizontally(targetOffsetX = { it / 2 }) }
+        ) { navBackStackEntry ->
             Log.d("LifecycleDebug", "MainActivity: Composing LabelBrowseScreen route. NBE State: ${navBackStackEntry.lifecycle.currentState}")
             CompositionLocalProvider(LocalLifecycleOwner provides navBackStackEntry) {
                 LabelBrowseScreen(
@@ -109,7 +130,13 @@ fun NoteAppNavigation(
             }
         }
 
-        composable(route = Screen.ManageLabels.route) { navBackStackEntry ->
+        composable(
+            route = Screen.ManageLabels.route,
+            enterTransition = { fadeIn(animationSpec = tween(300)) + slideInHorizontally(initialOffsetX = { it / 2 }) },
+            exitTransition = { fadeOut(animationSpec = tween(300)) + slideOutHorizontally(targetOffsetX = { -it / 2 }) },
+            popEnterTransition = { fadeIn(animationSpec = tween(300)) + slideInHorizontally(initialOffsetX = { -it / 2 }) },
+            popExitTransition = { fadeOut(animationSpec = tween(300)) + slideOutHorizontally(targetOffsetX = { it / 2 }) }
+        ) { navBackStackEntry ->
             Log.d("LifecycleDebug", "MainActivity: Composing ManageLabelsScreen route. NBE State: ${navBackStackEntry.lifecycle.currentState}")
             CompositionLocalProvider(LocalLifecycleOwner provides navBackStackEntry) {
                 ManageLabelsScreen(
@@ -119,7 +146,13 @@ fun NoteAppNavigation(
             }
         }
 
-        composable(route = Screen.Settings.route) { navBackStackEntry ->
+        composable(
+            route = Screen.Settings.route,
+            enterTransition = { fadeIn(animationSpec = tween(300)) + slideInHorizontally(initialOffsetX = { it / 2 }) },
+            exitTransition = { fadeOut(animationSpec = tween(300)) + slideOutHorizontally(targetOffsetX = { -it / 2 }) },
+            popEnterTransition = { fadeIn(animationSpec = tween(300)) + slideInHorizontally(initialOffsetX = { -it / 2 }) },
+            popExitTransition = { fadeOut(animationSpec = tween(300)) + slideOutHorizontally(targetOffsetX = { it / 2 }) }
+        ) { navBackStackEntry ->
             Log.d("LifecycleDebug", "MainActivity: Composing SettingsScreen route. NBE State: ${navBackStackEntry.lifecycle.currentState}")
             CompositionLocalProvider(LocalLifecycleOwner provides navBackStackEntry) {
                 SettingsScreen(

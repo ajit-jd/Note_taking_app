@@ -44,6 +44,15 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.Lifecycle
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavController
@@ -796,12 +805,17 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                                 showBgColorMenu = true
                             }
                         )
-                        DropdownMenu(
-                            expanded = showBgColorMenu,
-                            onDismissRequest = { showBgColorMenu = false }
+                        AnimatedVisibility(
+                            visible = showBgColorMenu,
+                            enter = fadeIn() + scaleIn(transformOrigin = TransformOrigin(0.9f, 0.1f)), // Adjusted for typical menu opening
+                            exit = fadeOut() + scaleOut(transformOrigin = TransformOrigin(0.9f, 0.1f))
                         ) {
-                            val noteBackgroundColors = listOf(
-                                "Default" to Color.Transparent,
+                            DropdownMenu(
+                                expanded = true, // Controlled by AnimatedVisibility
+                                onDismissRequest = { showBgColorMenu = false }
+                            ) {
+                                val noteBackgroundColors = listOf(
+                                    "Default" to Color.Transparent,
                                 "Light Yellow" to Color(0xFFFFF9C4),
                                 "Light Blue" to Color(0xFFB3E5FC),
                                 "Light Green" to Color(0xFFC8E6C9),
@@ -1036,16 +1050,21 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                 )
 
                 // Label Suggestion DropdownMenu
-                DropdownMenu(
-                    expanded = showLabelSuggestions && suggestedLabels.isNotEmpty(),
-                    onDismissRequest = { showLabelSuggestions = false },
-                    properties = PopupProperties(focusable = false)
+                AnimatedVisibility(
+                    visible = showLabelSuggestions && suggestedLabels.isNotEmpty(),
+                    enter = fadeIn() + scaleIn(),
+                    exit = fadeOut() + scaleOut()
                 ) {
-                    suggestedLabels.take(5).forEach { label ->
-                        DropdownMenuItem(
-                            text = { Text(label.name) },
-                            onClick = {
-                                val textAnn = contentTfv.annotatedString
+                    DropdownMenu(
+                        expanded = true, // Controlled by AnimatedVisibility
+                        onDismissRequest = { showLabelSuggestions = false },
+                        properties = PopupProperties(focusable = false)
+                    ) {
+                        suggestedLabels.take(5).forEach { label ->
+                            DropdownMenuItem(
+                                text = { Text(label.name) },
+                                onClick = {
+                                    val textAnn = contentTfv.annotatedString
                                 val cursor = contentTfv.selection.end
                                 val prefixStart = textAnn.text.lastIndexOf(labelPrefix, startIndex = cursor - labelPrefix.length)
                                 if (prefixStart != -1) {
@@ -1070,13 +1089,19 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
             }
 
             // Display Selected Image
-            noteImageUriString?.let { uriString ->
-                val imageUri = try { Uri.parse(uriString) } catch (e: Exception) { null }
-                imageUri?.let {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp)
+            AnimatedVisibility(
+                visible = noteImageUriString != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                noteImageUriString?.let { uriString ->
+                    val imageUri = try { Uri.parse(uriString) } catch (e: Exception) { null }
+                    imageUri?.let {
+                        Column { // Wrap in a column to allow Spacer and Box to be animated together
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 16.dp)
                             .fillMaxWidth()
                             .heightIn(max = 250.dp)
                             .combinedClickable(
@@ -1112,9 +1137,11 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Fit
                         )
+                            )
+                        }
                     }
-        }
-    }
+                }
+            }
 
     // Debouncer for Content Undo
     LaunchedEffect(contentTfv) { // Reacts to contentTfv changes
@@ -1142,14 +1169,20 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 12.dp, end = 12.dp, bottom = 16.dp, top = 0.dp)
-                        .horizontalScroll(rememberScrollState()),
+                        .horizontalScroll(rememberScrollState())
+                        .animateContentSize(), // Added animateContentSize
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     existingNoteLabels.forEach { labelObject ->
-                        InputChip(
-                            selected = false,
-                            onClick = {
-                                Log.d("LabelChip", "Clicked on label: ${labelObject.name} to remove.")
+                        AnimatedVisibility(
+                            visible = true, // Each chip is visible when in the list
+                            enter = fadeIn() + scaleIn(),
+                            exit = fadeOut() + scaleOut()
+                        ) {
+                            InputChip(
+                                selected = false,
+                                onClick = {
+                                    Log.d("LabelChip", "Clicked on label: ${labelObject.name} to remove.")
                                 if (currentNoteIdInternal != -1) {
                                     scope.launch { viewModel.removeLabelFromNote(currentNoteIdInternal, labelObject.id) }
                                 } else {
@@ -1166,7 +1199,8 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                                     modifier = Modifier.size(InputChipDefaults.IconSize)
                                 )
                             }
-                        )
+                            )
+                        }
                     }
                 }
             } else if (existingNoteLabels.isNotEmpty() && WindowInsets.isImeVisible) {
