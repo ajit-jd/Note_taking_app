@@ -1036,16 +1036,15 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                 )
 
                 // Label Suggestion DropdownMenu
-                val isLabelSuggestionsVisible = showLabelSuggestions && suggestedLabels.isNotEmpty()
-
-                AnimatedVisibility(
-                    visible = isLabelSuggestionsVisible,
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = showLabelSuggestions && suggestedLabels.isNotEmpty(), // Condition
+                    modifier = Modifier.align(Alignment.TopStart), // Optional: Adjust alignment
                     enter = fadeIn() + scaleIn(),
                     exit = fadeOut() + scaleOut()
                 ) {
                     DropdownMenu(
-                        expanded = true, // Controlled by AnimatedVisibility
-                        onDismissRequest = { showLabelSuggestions = false },
+                        expanded = true, // IMPORTANT: Now controlled by AnimatedVisibility
+                        onDismissRequest = { showLabelSuggestions = false }, // This will make AnimatedVisibility hide it
                         properties = PopupProperties(focusable = false)
                     ) {
                         suggestedLabels.take(5).forEach { label ->
