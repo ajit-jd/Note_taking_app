@@ -5,6 +5,11 @@ package com.example.project7.ui.screens
 import androidx.compose.ui.platform.LocalContext // Added for contex
 import android.net.Uri
 import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi // For combinedClickable (long press)
@@ -44,15 +49,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.Lifecycle
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavController
@@ -64,9 +60,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-// Constants for Undo/Redo
-private const val MAX_UNDO_STACK_SIZE = 50
-private const val DEBOUNCE_MS = 750L
+
 
 import android.content.Intent
 import android.speech.RecognizerIntent
@@ -88,6 +82,12 @@ import kotlinx.coroutines.delay // Already imported above, but good to ensure
 import com.example.project7.ui.utils.* // Imports all utils: helpers, constants, FormattingButton
 //import java.util.jar.Manifest
 
+enum class LastFocusedField { TITLE, CONTENT }
+
+// Constants for Undo/Redo
+private const val MAX_UNDO_STACK_SIZE = 50
+private const val DEBOUNCE_MS = 750L
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, noteId: Int )
@@ -107,7 +107,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
     var redoStackContent by remember { mutableStateOf<List<TextFieldValue>>(emptyList()) }
 
     // Track last focused field for global undo/redo
-    enum class LastFocusedField { TITLE, CONTENT }
+
     var lastFocusedField by remember { mutableStateOf(LastFocusedField.CONTENT) } // Default to content
 
     var initialDataApplied by remember { mutableStateOf(false) }
@@ -463,6 +463,18 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                             Icon(Icons.Filled.Delete, "Delete Note")
                         }
                     }
+                    IconButton(
+                        onClick = {
+                            Log.d("NoteDetailScreen", "Add Image icon in TopAppBar clicked - launching picker")
+                            try {
+                                imagePickerLauncher.launch("image/*")
+                            } catch (e: Exception) {
+                                Log.e("ImageUpload", "Error launching image picker from TopAppBar: ${e.message}")
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Filled.Image, contentDescription = "Add image")
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -495,7 +507,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                         }
                         // Logic to push to undo stack will be handled by a debouncer/LaunchedEffect
                         // Update last focused field immediately - ALREADY DONE in onFocusChanged
-                        // lastFocusedField = LastFocusedField.TITLE 
+                        // lastFocusedField = LastFocusedField.TITLE
                     }
                     // Auto-save call should remain
                     if (initialDataApplied) triggerAutoSave(true)
@@ -776,23 +788,6 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                         }
                     )
 
-                    VerticalDivider(modifier = Modifier.height(24.dp).padding(horizontal = 4.dp))
-
-                    // Image Upload Button
-                    FormattingButton(
-                        icon = Icons.Filled.Image,
-                        desc = "Add Image",
-                        isSelected = false,
-                        onClick = {
-                            Log.d("NoteFormatting", "Add Image clicked - launching picker")
-                            try {
-                                imagePickerLauncher.launch("image/*")
-                            } catch (e: Exception) {
-                                Log.e("ImageUpload", "Error launching image picker: ${e.message}")
-                            }
-                        }
-                    )
-
                     // BACKGROUND COLOR BUTTON
                     var showBgColorMenu by remember { mutableStateOf(false) }
                     Box {
@@ -805,17 +800,12 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                                 showBgColorMenu = true
                             }
                         )
-                        AnimatedVisibility(
-                            visible = showBgColorMenu,
-                            enter = fadeIn() + scaleIn(transformOrigin = TransformOrigin(0.9f, 0.1f)), // Adjusted for typical menu opening
-                            exit = fadeOut() + scaleOut(transformOrigin = TransformOrigin(0.9f, 0.1f))
+                        DropdownMenu(
+                            expanded = showBgColorMenu,
+                            onDismissRequest = { showBgColorMenu = false }
                         ) {
-                            DropdownMenu(
-                                expanded = true, // Controlled by AnimatedVisibility
-                                onDismissRequest = { showBgColorMenu = false }
-                            ) {
-                                val noteBackgroundColors = listOf(
-                                    "Default" to Color.Transparent,
+                            val noteBackgroundColors = listOf(
+                                "Default" to Color.Transparent,
                                 "Light Yellow" to Color(0xFFFFF9C4),
                                 "Light Blue" to Color(0xFFB3E5FC),
                                 "Light Green" to Color(0xFFC8E6C9),
@@ -1050,14 +1040,15 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                 )
 
                 // Label Suggestion DropdownMenu
-                AnimatedVisibility(
-                    visible = showLabelSuggestions && suggestedLabels.isNotEmpty(),
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = showLabelSuggestions && suggestedLabels.isNotEmpty(), // Condition
+                    modifier = Modifier.align(Alignment.TopStart), // Optional: Adjust alignment
                     enter = fadeIn() + scaleIn(),
                     exit = fadeOut() + scaleOut()
                 ) {
                     DropdownMenu(
-                        expanded = true, // Controlled by AnimatedVisibility
-                        onDismissRequest = { showLabelSuggestions = false },
+                        expanded = true, // IMPORTANT: Now controlled by AnimatedVisibility
+                        onDismissRequest = { showLabelSuggestions = false }, // This will make AnimatedVisibility hide it
                         properties = PopupProperties(focusable = false)
                     ) {
                         suggestedLabels.take(5).forEach { label ->
@@ -1065,43 +1056,38 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                                 text = { Text(label.name) },
                                 onClick = {
                                     val textAnn = contentTfv.annotatedString
-                                val cursor = contentTfv.selection.end
-                                val prefixStart = textAnn.text.lastIndexOf(labelPrefix, startIndex = cursor - labelPrefix.length)
-                                if (prefixStart != -1) {
-                                    val builder = AnnotatedString.Builder()
-                                    builder.append(textAnn.subSequence(0, prefixStart))
-                                    builder.append(label.name + " ")
-                                    builder.append(textAnn.subSequence(cursor, textAnn.length))
-                                    val newCursorPos = prefixStart + label.name.length + 1
-                                    contentTfv = TextFieldValue(builder.toAnnotatedString(), TextRange(newCursorPos))
-                                    if (currentNoteIdInternal != -1) {
-                                        scope.launch { viewModel.addLabelToNote(currentNoteIdInternal, label.id) }
-                                    } else if (!labelsToAddToNewNote.contains(label.id)) {
-                                        labelsToAddToNewNote.add(label.id)
+                                    val cursor = contentTfv.selection.end
+                                    val prefixStart = textAnn.text.lastIndexOf(labelPrefix, startIndex = cursor - labelPrefix.length)
+                                    if (prefixStart != -1) {
+                                        val builder = AnnotatedString.Builder()
+                                        builder.append(textAnn.subSequence(0, prefixStart))
+                                        builder.append(label.name + " ")
+                                        builder.append(textAnn.subSequence(cursor, textAnn.length))
+                                        val newCursorPos = prefixStart + label.name.length + 1
+                                        contentTfv = TextFieldValue(builder.toAnnotatedString(), TextRange(newCursorPos))
+                                        if (currentNoteIdInternal != -1) {
+                                            scope.launch { viewModel.addLabelToNote(currentNoteIdInternal, label.id) }
+                                        } else if (!labelsToAddToNewNote.contains(label.id)) {
+                                            labelsToAddToNewNote.add(label.id)
+                                        }
                                     }
+                                    showLabelSuggestions = false // Ensure it's dismissed
+                                    currentLabelQuery = ""
                                 }
-                                showLabelSuggestions = false
-                                currentLabelQuery = ""
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
 
             // Display Selected Image
-            AnimatedVisibility(
-                visible = noteImageUriString != null,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                noteImageUriString?.let { uriString ->
-                    val imageUri = try { Uri.parse(uriString) } catch (e: Exception) { null }
-                    imageUri?.let {
-                        Column { // Wrap in a column to allow Spacer and Box to be animated together
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 16.dp)
+            noteImageUriString?.let { uriString ->
+                val imageUri = try { Uri.parse(uriString) } catch (e: Exception) { null }
+                imageUri?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
                             .fillMaxWidth()
                             .heightIn(max = 250.dp)
                             .combinedClickable(
@@ -1129,7 +1115,8 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                                         }
                                     }
                                 }
-                            )
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
                             model = it,
@@ -1137,23 +1124,21 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Fit
                         )
-                            )
-                        }
                     }
                 }
             }
 
-    // Debouncer for Content Undo
-    LaunchedEffect(contentTfv) { // Reacts to contentTfv changes
-        if (!initialDataApplied) return@LaunchedEffect // Don't run on initial composition
+            // Debouncer for Content Undo
+            LaunchedEffect(contentTfv) { // Reacts to contentTfv changes
+                if (!initialDataApplied) return@LaunchedEffect // Don't run on initial composition
 
-        delay(DEBOUNCE_MS) // Wait for typing to pause
+                delay(DEBOUNCE_MS) // Wait for typing to pause
 
-        // Check if the current contentTfv is different from the last saved undo state
-        if (undoStackContent.lastOrNull() != contentTfv) {
-            //Log.d("UndoDebug", "Debounced: Adding to undoStackContent. Current stack size: ${undoStackContent.size}")
-            undoStackContent = (undoStackContent + contentTfv).takeLast(MAX_UNDO_STACK_SIZE)
-            //Log.d("UndoDebug", "New undoStackContent size: ${undoStackContent.size}, last element: ${undoStackContent.lastOrNull()?.text}")
+                // Check if the current contentTfv is different from the last saved undo state
+                if (undoStackContent.lastOrNull() != contentTfv) {
+                    //Log.d("UndoDebug", "Debounced: Adding to undoStackContent. Current stack size: ${undoStackContent.size}")
+                    undoStackContent = (undoStackContent + contentTfv).takeLast(MAX_UNDO_STACK_SIZE)
+                    //Log.d("UndoDebug", "New undoStackContent size: ${undoStackContent.size}, last element: ${undoStackContent.lastOrNull()?.text}")
                 }
             }
 
@@ -1169,20 +1154,14 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 12.dp, end = 12.dp, bottom = 16.dp, top = 0.dp)
-                        .horizontalScroll(rememberScrollState())
-                        .animateContentSize(), // Added animateContentSize
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     existingNoteLabels.forEach { labelObject ->
-                        AnimatedVisibility(
-                            visible = true, // Each chip is visible when in the list
-                            enter = fadeIn() + scaleIn(),
-                            exit = fadeOut() + scaleOut()
-                        ) {
-                            InputChip(
-                                selected = false,
-                                onClick = {
-                                    Log.d("LabelChip", "Clicked on label: ${labelObject.name} to remove.")
+                        InputChip(
+                            selected = false,
+                            onClick = {
+                                Log.d("LabelChip", "Clicked on label: ${labelObject.name} to remove.")
                                 if (currentNoteIdInternal != -1) {
                                     scope.launch { viewModel.removeLabelFromNote(currentNoteIdInternal, labelObject.id) }
                                 } else {
@@ -1199,8 +1178,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                                     modifier = Modifier.size(InputChipDefaults.IconSize)
                                 )
                             }
-                            )
-                        }
+                        )
                     }
                 }
             } else if (existingNoteLabels.isNotEmpty() && WindowInsets.isImeVisible) {
