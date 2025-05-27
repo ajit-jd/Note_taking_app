@@ -18,6 +18,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role // Added for Role.Button
@@ -26,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import com.example.project7.data.Notebook
 import com.example.project7.data.SubNotebook
 import com.example.project7.viewmodel.NotebookDrawerItem
+import kotlinx.coroutines.launch
+
 // No import for com.example.project6.Screen needed here if Settings navigation is just a lambda
 
 @OptIn(ExperimentalMaterial3Api::class)

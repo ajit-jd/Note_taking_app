@@ -9,8 +9,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.* // For remember, mutableStateOf, by
-import androidx.compose.runtime.saveable.rememberSaveable // For saving theme state
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable // For saving theme state - will be removed for isDarkTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -18,7 +18,10 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.foundation.isSystemInDarkTheme
+// import androidx.lifecycle.compose.collectAsStateWithLifecycle // Alternative
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.example.project7.data.ThemeDataStoreRepository
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -34,6 +37,13 @@ import com.example.project7.ui.screens.SettingsScreen // Ensure this is imported
 import com.example.project7.ui.theme.Project7Theme
 import com.example.project7.viewmodel.NoteViewModel
 
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.Button
+import androidx.compose.runtime.*
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen() // Call before super.onCreate for API 31+ consistency
@@ -42,21 +52,70 @@ class MainActivity : ComponentActivity() {
          Thread.sleep(300) // Generally avoid Thread.sleep on main thread for splash
 
         setContent {
-            // 1. Manage theme state here
-            var isDarkTheme by rememberSaveable { mutableStateOf(false) }
-            val onThemeToggleLambda = { newThemeState: Boolean -> isDarkTheme = newThemeState }
+            val themeRepository = ThemeDataStoreRepository(applicationContext)
+            val currentThemeSettingString by themeRepository.themeSettingFlow.collectAsState(initial = "SYSTEM")
+            var showExitDialog by remember { mutableStateOf(false) }
+
+
+
+            var isDarkTheme by remember { mutableStateOf(false) } // Initial value updated by LaunchedEffect
+
+            // Update isDarkTheme based on DataStore preference or system setting
+            val systemIsDark = isSystemInDarkTheme() // Call isSystemInDarkTheme() at the top level of Composable
+            LaunchedEffect(currentThemeSettingString, systemIsDark) { // Re-run if preference or system theme changes
+                Log.d("ThemeApply", "Theme preference changed to: $currentThemeSettingString, System is dark: $systemIsDark")
+                isDarkTheme = when (currentThemeSettingString) {
+                    "DARK" -> true
+                    "LIGHT" -> false
+                    "SYSTEM" -> systemIsDark
+                    else -> systemIsDark // Default to system for any unknown value
+                }
+                Log.d("ThemeApply", "isDarkTheme dynamically set to: $isDarkTheme")
+            }
+            
+            // onThemeToggle is now a no-op as SettingsScreen saves to DataStore,
+            // and MainActivity reacts to DataStore changes.
+  //          val onThemeToggleLambda = { /* No-op */ }
+            val onThemeToggleLambda: (Boolean) -> Unit = { isDarkMode ->
+                // Your logic here
+            }
+
 
             Project7Theme(darkTheme = isDarkTheme) { // Apply the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // 2. Pass the state and toggle function to NoteAppNavigation
                     NoteAppNavigation(
                         isDarkTheme = isDarkTheme,
-                        onThemeToggle = onThemeToggleLambda
+                        onThemeToggle = onThemeToggleLambda, // Pass the potentially no-op lambda
+                        themeRepository = themeRepository
                     )
                 }
+            }
+
+            // Handle Back Button
+            BackHandler(enabled = true) {
+                showExitDialog = true
+            }
+
+            // Dialog UI
+            if (showExitDialog) {
+                AlertDialog(
+                    onDismissRequest = { showExitDialog = false },
+                    title = { Text(text = "Exit App") },
+                    text = { Text("Are you sure you want to exit?") },
+                    confirmButton = {
+                        Button(onClick = { finish() }) {
+                            Text("Yes")
+                        }
+                    },
+                    dismissButton = {
+                        Button(onClick = { showExitDialog = false }) {
+                            Text("No")
+                        }
+                    }
+                )
             }
         }
     }
@@ -64,8 +123,9 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun NoteAppNavigation(
-    isDarkTheme: Boolean,             // <<< Now correctly received
-    onThemeToggle: (Boolean) -> Unit  // <<< Now correctly received
+    isDarkTheme: Boolean,
+    onThemeToggle: (Boolean) -> Unit,
+    themeRepository: ThemeDataStoreRepository
 ) {
     val navController: NavHostController = rememberNavController()
     val noteViewModel: NoteViewModel = viewModel()
@@ -158,7 +218,8 @@ fun NoteAppNavigation(
                 SettingsScreen(
                     navController = navController,
                     isDarkTheme = isDarkTheme,       // <<< 4. Pass down to SettingsScreen
-                    onThemeToggle = onThemeToggle    // <<< 4. Pass down to SettingsScreen
+                    onThemeToggle = onThemeToggle,    // <<< 4. Pass down to SettingsScreen
+                    themeRepository = themeRepository
                 )
             }
         }

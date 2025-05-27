@@ -340,7 +340,7 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
     }
 
     Scaffold(
-        modifier = Modifier.imePadding(),
+        modifier = Modifier,
         topBar = {
             TopAppBar(
                 title = {
@@ -491,7 +491,8 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .imePadding()
+                .padding(bottom = 50.dp)
+                //.imePadding()
                 .verticalScroll(scrollState)
                 .background(selectedBackgroundColor)
         ) {
@@ -1188,3 +1189,4 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
     }
     Log.d("LifecycleDebug", "NoteDetailScreen Composable: End (noteId: $currentNoteIdInternal)")
 }
+

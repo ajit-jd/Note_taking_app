@@ -39,6 +39,10 @@ import com.example.project7.data.Label // For Label type (if still needed by App
 import com.example.project7.data.SubNotebook // For SubNotebook type
 import com.example.project7.ui.utils.collectAsStateWithLifecycleManual
 
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AlertDialog
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
