@@ -454,6 +454,18 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                             Icon(Icons.Filled.Delete, "Delete Note")
                         }
                     }
+                    IconButton(
+                        onClick = {
+                            Log.d("NoteDetailScreen", "Add Image icon in TopAppBar clicked - launching picker")
+                            try {
+                                imagePickerLauncher.launch("image/*")
+                            } catch (e: Exception) {
+                                Log.e("ImageUpload", "Error launching image picker from TopAppBar: ${e.message}")
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Filled.Image, contentDescription = "Add image")
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -764,23 +776,6 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                                 )
                             }
                             if (initialDataApplied) triggerAutoSave(false)
-                        }
-                    )
-
-                    VerticalDivider(modifier = Modifier.height(24.dp).padding(horizontal = 4.dp))
-
-                    // Image Upload Button
-                    FormattingButton(
-                        icon = Icons.Filled.Image,
-                        desc = "Add Image",
-                        isSelected = false,
-                        onClick = {
-                            Log.d("NoteFormatting", "Add Image clicked - launching picker")
-                            try {
-                                imagePickerLauncher.launch("image/*")
-                            } catch (e: Exception) {
-                                Log.e("ImageUpload", "Error launching image picker: ${e.message}")
-                            }
                         }
                     )
 
@@ -1113,12 +1108,12 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                             contentScale = ContentScale.Fit
                         )
                     }
-        }
-    }
+                }
+            }
 
-    // Debouncer for Content Undo
-    LaunchedEffect(contentTfv) { // Reacts to contentTfv changes
-        if (!initialDataApplied) return@LaunchedEffect // Don't run on initial composition
+            // Debouncer for Content Undo
+            LaunchedEffect(contentTfv) { // Reacts to contentTfv changes
+                if (!initialDataApplied) return@LaunchedEffect // Don't run on initial composition
 
         delay(DEBOUNCE_MS) // Wait for typing to pause
 
