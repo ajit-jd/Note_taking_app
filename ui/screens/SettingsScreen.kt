@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.project7.data.ThemeDataStoreRepository
+import kotlinx.coroutines.launch
 
 // Enum for Theme options
 enum class ThemeSetting {
@@ -29,12 +31,14 @@ var currentThemeSetting = mutableStateOf(ThemeSetting.SYSTEM) // Default
 fun SettingsScreen(
     navController: NavController,
     isDarkTheme: Boolean, // <<< Must match
-    onThemeToggle: (Boolean) -> Unit // <<< Must match
+    onThemeToggle: (Boolean) -> Unit, // <<< Must match
+    themeRepository: ThemeDataStoreRepository
     // TODO: Pass a lambda to actually change the app's theme:
     // onThemeChange: (ThemeSetting) -> Unit
 ) {
     // Local state for this screen's UI, reflecting the global setting
     var selectedTheme by remember { currentThemeSetting }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -74,6 +78,11 @@ fun SettingsScreen(
                                 onClick = {
                                     selectedTheme = theme
                                     currentThemeSetting.value = theme // Update the global-like state
+
+                                scope.launch {
+                                    themeRepository.saveThemeSetting(theme.name)
+                                    Log.d("SettingsScreen", "Theme saved: ${theme.name}")
+                                }
                                     // TODO: Call onThemeChange(theme) to actually change the app theme
                                     // This would trigger a recomposition of your top-level Project6Theme
                                 },
