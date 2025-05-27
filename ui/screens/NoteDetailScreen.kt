@@ -5,6 +5,11 @@ package com.example.project7.ui.screens
 import androidx.compose.ui.platform.LocalContext // Added for contex
 import android.net.Uri
 import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi // For combinedClickable (long press)
@@ -1031,35 +1036,43 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                 )
 
                 // Label Suggestion DropdownMenu
-                DropdownMenu(
-                    expanded = showLabelSuggestions && suggestedLabels.isNotEmpty(),
-                    onDismissRequest = { showLabelSuggestions = false },
-                    properties = PopupProperties(focusable = false)
+                val isLabelSuggestionsVisible = showLabelSuggestions && suggestedLabels.isNotEmpty()
+
+                AnimatedVisibility(
+                    visible = isLabelSuggestionsVisible,
+                    enter = fadeIn() + scaleIn(),
+                    exit = fadeOut() + scaleOut()
                 ) {
-                    suggestedLabels.take(5).forEach { label ->
-                        DropdownMenuItem(
-                            text = { Text(label.name) },
-                            onClick = {
-                                val textAnn = contentTfv.annotatedString
-                                val cursor = contentTfv.selection.end
-                                val prefixStart = textAnn.text.lastIndexOf(labelPrefix, startIndex = cursor - labelPrefix.length)
-                                if (prefixStart != -1) {
-                                    val builder = AnnotatedString.Builder()
-                                    builder.append(textAnn.subSequence(0, prefixStart))
-                                    builder.append(label.name + " ")
-                                    builder.append(textAnn.subSequence(cursor, textAnn.length))
-                                    val newCursorPos = prefixStart + label.name.length + 1
-                                    contentTfv = TextFieldValue(builder.toAnnotatedString(), TextRange(newCursorPos))
-                                    if (currentNoteIdInternal != -1) {
-                                        scope.launch { viewModel.addLabelToNote(currentNoteIdInternal, label.id) }
-                                    } else if (!labelsToAddToNewNote.contains(label.id)) {
-                                        labelsToAddToNewNote.add(label.id)
+                    DropdownMenu(
+                        expanded = true, // Controlled by AnimatedVisibility
+                        onDismissRequest = { showLabelSuggestions = false },
+                        properties = PopupProperties(focusable = false)
+                    ) {
+                        suggestedLabels.take(5).forEach { label ->
+                            DropdownMenuItem(
+                                text = { Text(label.name) },
+                                onClick = {
+                                    val textAnn = contentTfv.annotatedString
+                                    val cursor = contentTfv.selection.end
+                                    val prefixStart = textAnn.text.lastIndexOf(labelPrefix, startIndex = cursor - labelPrefix.length)
+                                    if (prefixStart != -1) {
+                                        val builder = AnnotatedString.Builder()
+                                        builder.append(textAnn.subSequence(0, prefixStart))
+                                        builder.append(label.name + " ")
+                                        builder.append(textAnn.subSequence(cursor, textAnn.length))
+                                        val newCursorPos = prefixStart + label.name.length + 1
+                                        contentTfv = TextFieldValue(builder.toAnnotatedString(), TextRange(newCursorPos))
+                                        if (currentNoteIdInternal != -1) {
+                                            scope.launch { viewModel.addLabelToNote(currentNoteIdInternal, label.id) }
+                                        } else if (!labelsToAddToNewNote.contains(label.id)) {
+                                            labelsToAddToNewNote.add(label.id)
+                                        }
                                     }
+                                    showLabelSuggestions = false // Ensure it's dismissed
+                                    currentLabelQuery = ""
                                 }
-                                showLabelSuggestions = false
-                                currentLabelQuery = ""
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -1099,7 +1112,8 @@ fun NoteDetailScreen( navController: NavController, viewModel: NoteViewModel, no
                                         }
                                     }
                                 }
-                            )
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
                             model = it,
